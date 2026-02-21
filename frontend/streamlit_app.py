@@ -173,11 +173,4 @@ with right:
             st.error(f"Demo generation failed: {e}")
 
 st.divider()
-st.subheader("What judges should notice")
-st.write(
-    """
-- WHO-based clinical z-score computation (WAZ/HAZ/WHZ)
-- State is persisted as a Digital Twin timeline (timestamped snapshot)
-- This UI is a thin layer: the intelligence is in the API + models
-"""
-)
+
