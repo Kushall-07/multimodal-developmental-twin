@@ -42,6 +42,14 @@ def _load_table(path: Path) -> pd.DataFrame:
     return df.sort_values(["sex", "x"]).reset_index(drop=True)
 
 
+def months_to_days(age_months: float) -> float:
+    """Convert age in months to days for daily-indexed WHO tables (0..1856).
+
+    Uses 30.4375 days/month, i.e. 365.25 / 12.
+    """
+    return float(age_months * 30.4375)
+
+
 def load_who_reference(who_lms_dir: str) -> WHOReference:
     """
     Loads WHO LMS reference tables from a directory.
@@ -112,14 +120,16 @@ def _interp_lms(df: pd.DataFrame, sex: Sex, x: float) -> tuple[float, float, flo
 def compute_waz(ref: WHOReference, sex: Sex, age_months: float, weight_kg: float) -> float:
     if ref.wfa is None:
         raise ValueError("WFA LMS table not loaded (wfa_lms.csv missing).")
-    L, M, S = _interp_lms(ref.wfa, sex, age_months)
+    age_days = months_to_days(age_months)
+    L, M, S = _interp_lms(ref.wfa, sex, age_days)
     return lms_zscore(weight_kg, L, M, S)
 
 
 def compute_haz(ref: WHOReference, sex: Sex, age_months: float, height_cm: float) -> float:
     if ref.hfa is None:
         raise ValueError("HFA LMS table not loaded (hfa_lms.csv missing).")
-    L, M, S = _interp_lms(ref.hfa, sex, age_months)
+    age_days = months_to_days(age_months)
+    L, M, S = _interp_lms(ref.hfa, sex, age_days)
     return lms_zscore(height_cm, L, M, S)
 
 
