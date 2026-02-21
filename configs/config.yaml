@@ -1,0 +1,13 @@
+project:
+  name: "multimodal-child-development-digital-twin"
+paths:
+  who_lms_dir: "data/raw/who"
+  outputs_dir: "outputs"
+growth:
+  # z-score based screening thresholds (WHO convention)
+  stunting_haz_threshold: -2.0
+  wasting_whz_threshold: -2.0
+  underweight_waz_threshold: -2.0
+api:
+  host: "0.0.0.0"
+  port: 8000
