@@ -1,0 +1,25 @@
+{
+  "dataset": "data\\raw\\uci_student\\student-mat.csv",
+  "features": [
+    "sex",
+    "age",
+    "Medu",
+    "Fedu",
+    "studytime",
+    "failures",
+    "absences",
+    "schoolsup",
+    "famsup",
+    "paid",
+    "higher",
+    "internet",
+    "goout",
+    "Dalc",
+    "Walc",
+    "health"
+  ],
+  "target": "at_risk (G3 < 10)",
+  "auc": 0.7438316400580551,
+  "risk_threshold_g3": 10,
+  "notes": "Early-warning: excludes G1/G2 to avoid leakage."
+}

@@ -1,0 +1,21 @@
+{
+  "model_version": "fusion-xgb-v1",
+  "metrics": {
+    "roc_auc": 0.5,
+    "pr_auc": 0.18181818181818182,
+    "f1": 0.0,
+    "pos_rate": 0.16,
+    "rows": 50,
+    "features": [
+      "growth_risk",
+      "growth_conf",
+      "growth_present",
+      "learning_risk",
+      "learning_conf",
+      "learning_present",
+      "emotion_risk",
+      "emotion_conf",
+      "emotion_present"
+    ]
+  }
+}

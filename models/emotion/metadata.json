@@ -1,0 +1,14 @@
+{
+  "classes": [
+    "angry",
+    "happy",
+    "sad",
+    "bored"
+  ],
+  "mapping_note": "bored is a proxy mapped from FER2013 neutral",
+  "model_version": "emotion-4class-v1",
+  "train_samples": 6000,
+  "test_samples": 2000,
+  "finished_at_utc": 1771724893.6149297,
+  "device": "cpu"
+}

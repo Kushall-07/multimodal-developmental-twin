@@ -1,62 +1,11 @@
-# -------------------------
-# Python
-# -------------------------
+venv/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-*.pkl
-*.joblib
-
-# -------------------------
-# Virtual Environment
-# -------------------------
-venv/
 .env
-
-# -------------------------
-# Data (Do NOT push raw datasets)
-# -------------------------
-data/raw/
-data/interim/
-data/processed/
-
-# -------------------------
-# Trained Models
-# -------------------------
-models/
-outputs/models/
-outputs/reports/
-
-# -------------------------
-# Jupyter
-# -------------------------
 .ipynb_checkpoints/
-
-# -------------------------
-# IDE / Editors
-# -------------------------
 .vscode/
-.idea/
 
-# -------------------------
-# OS Files
-# -------------------------
-.DS_Store
-Thumbs.db
-
-# -------------------------
-# Logs
-# -------------------------
-*.log
-
-# -------------------------
-# Streamlit cache
-# -------------------------
-.streamlit/
-
-# -------------------------
-# Temporary files
-# -------------------------
-*.tmp
-*.bak
+data/raw/
+data/processed/
+outputs/
+*.db
