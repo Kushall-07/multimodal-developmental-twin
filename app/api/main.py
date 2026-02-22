@@ -2,16 +2,22 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime
-from typing import List
 
 import yaml
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from app.schemas.growth import GrowthInput, GrowthOutput
 from app.schemas.twin import TwinUpdate, TwinUpdateResponse
 from app.db.session import init_db, SessionLocal
 from app.db.models import TwinState
-from app.services.twin_store import persist_twin_update
+from app.services.twin_service import save_twin_event
+from app.api.routes.learning import router as learning_router
+from app.api.routes.twin_events import router as twin_events_router
+from app.api.routes.emotion import router as emotion_router
+from app.api.routes.fusion import router as fusion_router
+from app.api.routes.recommendations import router as rec_router
+from app.api.routes.simulate import router as simulate_router
+from app.api.routes.policy import router as policy_router
 from sqlalchemy import desc
 from src.models.growth.who_lms import (
     compute_haz,
@@ -31,15 +37,30 @@ def load_config() -> dict:
 
 
 cfg = load_config()
-who_ref = load_who_reference(cfg["paths"]["who_lms_dir"])
+who_ref = None  # loaded lazily at startup
 
 app = FastAPI(title="Child Development Digital Twin API", version="0.1.0")
+
+app.include_router(learning_router)
+app.include_router(twin_events_router)
+app.include_router(emotion_router)
+app.include_router(fusion_router)
+app.include_router(rec_router)
+app.include_router(simulate_router)
+app.include_router(policy_router)
 
 
 @app.on_event("startup")
 def _startup() -> None:
-    """Initialize database schema on startup."""
+    """Initialize database schema and load WHO reference on startup."""
+    global who_ref
     init_db()
+
+    try:
+        who_ref = load_who_reference(cfg["paths"]["who_lms_dir"])
+    except Exception as e:  # pragma: no cover - defensive for hackathon stability
+        who_ref = None
+        print(f"[WARN] WHO reference not loaded: {e}")
 
 
 @app.get("/health")
@@ -49,6 +70,13 @@ def health():
 
 @app.post("/growth/score", response_model=GrowthOutput)
 def growth_score(inp: GrowthInput) -> GrowthOutput:
+    if who_ref is None:
+        # WHO reference not available; fail this endpoint gracefully without killing the API
+        raise HTTPException(
+            status_code=503,
+            detail="WHO growth reference data not loaded. Check server configuration (who_lms_dir)",
+        )
+
     waz = compute_waz(who_ref, inp.sex, inp.age_months, inp.weight_kg)
     haz = compute_haz(who_ref, inp.sex, inp.age_months, inp.height_cm)
     whz = compute_whz(who_ref, inp.sex, inp.height_cm, inp.weight_kg)
@@ -72,7 +100,9 @@ def growth_score(inp: GrowthInput) -> GrowthOutput:
         "confidence": risk.confidence,
     }
 
-    _ = persist_twin_update(child_id=inp.child_id, modality="growth", payload=payload)
+    # Log growth outcome into the twin timeline via the canonical event writer
+    # timestamp=None => twin_service will normalize and stamp server/client times
+    save_twin_event(child_id=inp.child_id, modality="growth", payload=payload, timestamp=None)
 
     return GrowthOutput(
         child_id=inp.child_id,
@@ -119,8 +149,12 @@ def twin_update(inp: TwinUpdate) -> TwinUpdateResponse:
 
 
 @app.get("/twin/history/{child_id}")
-def twin_history(child_id: str, limit: int = 20):
-    """Return recent twin_state records for a child (oldest -> newest)."""
+def twin_history(child_id: str, limit: int = 50):
+    """Return recent twin events for a child (oldest -> newest).
+
+    Each event is modality-agnostic and exposes the stored payload and timestamp
+    from the TwinState.snapshot JSON.
+    """
     db = SessionLocal()
     try:
         rows = (
@@ -130,42 +164,56 @@ def twin_history(child_id: str, limit: int = 20):
             .limit(limit)
             .all()
         )
-        history = [
-            {
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "growth_overall_risk": r.growth_overall_risk,
-                "growth_confidence": r.growth_confidence,
-            }
-            for r in rows
-        ][::-1]
-        return history
+        events = []
+        for r in reversed(rows):  # oldest -> newest
+            snap = r.snapshot or {}
+            events.append(
+                {
+                    "child_id": r.child_id,
+                    "modality": snap.get("modality"),
+                    "payload": snap.get("payload"),
+                    "timestamp": (snap.get("server_timestamp") or (
+                        r.created_at.isoformat() if r.created_at else None
+                    )),
+                }
+            )
+        return events
     finally:
         db.close()
 
 
 @app.get("/twin/latest/{child_id}")
 def twin_latest(child_id: str):
+    """Return a merged snapshot built from the latest event per modality."""
     db = SessionLocal()
     try:
-        row = (
+        rows = (
             db.query(TwinState)
             .filter(TwinState.child_id == child_id)
-            .order_by(desc(TwinState.created_at))
-            .first()
+            .order_by(TwinState.created_at.asc())
+            .all()
         )
-        if row is None:
+        if not rows:
             return {"child_id": child_id, "status": "not_found"}
+
+        latest_by_modality = {}
+        latest_ts = None
+        for r in rows:
+            snap = r.snapshot or {}
+            mod = snap.get("modality") or "unknown"
+            payload = snap.get("payload")
+            ts = snap.get("server_timestamp") or (
+                r.created_at.isoformat() if r.created_at else None
+            )
+            if payload is not None:
+                latest_by_modality[mod] = payload
+            if ts is not None:
+                latest_ts = ts
+
         return {
             "child_id": child_id,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "growth": {
-                "waz": row.growth_waz,
-                "haz": row.growth_haz,
-                "whz": row.growth_whz,
-                "overall_risk": row.growth_overall_risk,
-                "confidence": row.growth_confidence,
-            },
-            "snapshot": row.snapshot,
+            "updated_at": latest_ts,
+            "snapshot": latest_by_modality,
         }
     finally:
         db.close()
